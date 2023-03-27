@@ -151,36 +151,51 @@ double Calculator::factor()
     {
         increment_token();
         result = add_subtract();
+        // i think this incrementation causes problems, 
+        // not sure when and where, but im trying removing it
         increment_token();
         return result;
     }
     
-    // negative number case
-    if (tokens.size() >= 2)
+    // negative case
+    if (currentToken == "-")
     {
+
+        if (tokens.size() < 2)
+        {
+            printf("ERROR: invalid sign -\n");
+            // Throw an error here, this means they have somehow gotten here with a hanging negative
+            // and proceeding would break the world
+            return 0;
+        }
+
         std::list<std::string>::iterator nextToken = tokens.begin();
-        std::next(nextToken);
-        if (currentToken == "-" && isdigit((*nextToken).at(0)))
+        nextToken = std::next(nextToken);
+
+        if (isdigit((*nextToken).at(0)))
         {
             increment_token();
             result = -atof(currentToken.c_str());
             increment_token();
             return result;
         }
-    }
 
-    // negative expression (negative parentheses) case
-    if (currentToken == "-")
-    {
-        increment_token();
-        //result = -atof(currentToken.c_str());
-        result = -add_subtract();
-        increment_token();
-        return result;
+        if ((*nextToken) == "(")
+        {
+            increment_token();
+            increment_token();
+            result = -add_subtract();
+            increment_token();
+            return result;
+        }
+
+        printf("ERROR: invalid sign -\n");
+        // Throw an error here, this means the - sign is not a negation and is in an invalid spot
+        return 0;
     }
 
     // normal number case
-    
+
     // String to double conversion.
     // We use doubles to support decimals, as well as precision.
     result = atof(currentToken.c_str());
@@ -191,7 +206,7 @@ double Calculator::factor()
 
 double Calculator::multiply_divide()
 {
-    int result = factor();
+    double result = factor();
 
     while (currentToken == "*" || currentToken == "/")
     {
@@ -221,7 +236,7 @@ double Calculator::multiply_divide()
 
 double Calculator::add_subtract()
 {
-    int result = multiply_divide();
+    double result = multiply_divide();
 
     while (currentToken == "+" || currentToken == "-")
     {

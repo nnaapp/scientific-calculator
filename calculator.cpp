@@ -3,6 +3,8 @@
 #include <stdlib.h>
 #include <algorithm>
 
+// input of "-" seg faults, figure out why
+
 double Calculator::parse(std::string input)
 {
     input = clean_input(input);
@@ -12,8 +14,15 @@ double Calculator::parse(std::string input)
         return 0.0;
     }
     tokenize_input(input);
-    currentToken = tokens.front();
-    return add_subtract();
+    validate_tokens();
+
+    if (!tokens.empty())
+    {
+        currentToken = tokens.front();
+        return add_subtract();
+    }
+    
+    return 0;
 }
 
 std::string Calculator::clean_input(std::string input)
@@ -49,16 +58,10 @@ std::string Calculator::clean_input(std::string input)
         // Iterate over the string and set a flag to true
         // if the symbol is found when searching the list
         // of valid symbols.
-        bool isValidOp = false;
-        int operatorsLen = valid_operators.size();
-        for (int j = 0; j < operatorsLen; j++)
-        {
-            if (input[i] == valid_operators[j])
-            {
-                isValidOp = true;
-                break;
-            }
-        }
+        //bool isValidOp = false;
+        std::string cur_char_string;
+        cur_char_string.push_back(input[i]);
+        bool isValidOp = is_valid_symbol(cur_char_string);
 
         // If symbol wasn't found, throw an error.
         if (!isValidOp)
@@ -71,6 +74,17 @@ std::string Calculator::clean_input(std::string input)
     }
 
     return input;
+}
+
+bool Calculator::is_valid_symbol(std::string str)
+{
+    for (int i = 0; i < valid_symbols.size(); i++)
+    {
+        if (str == valid_symbols[i])
+            return true;
+    }
+
+    return false;
 }
 
 // Turns the cleaned input string into a list of "token" strings,
@@ -120,6 +134,23 @@ void Calculator::tokenize_input(const std::string str)
     }
 }
 
+void Calculator::validate_tokens()
+{
+    std::list<std::string>::iterator iter = tokens.begin();
+
+    int parentheses_count;
+    while (iter != tokens.end())
+    {
+        if (*iter == "(" || *iter == ")")
+            parentheses_count++;
+
+        iter = std::next(iter);
+    }
+
+    if (parentheses_count % 2 != 0)
+        tokens.clear();
+}
+
 void Calculator::increment_token()
 {
     //printf("%d\n", tokens.size());
@@ -142,7 +173,7 @@ void Calculator::increment_token()
 
 
 // rename this, name is obscure and not helpful
-double Calculator::factor()
+double Calculator::expression()
 {
     double result;
 
@@ -194,6 +225,13 @@ double Calculator::factor()
         return 0;
     }
 
+    if (is_valid_symbol(currentToken))
+    {
+        printf("invalid symbol\n");
+        return 0.0;
+        // throw an error here probably
+    }
+
     // normal number case
 
     // String to double conversion.
@@ -206,20 +244,20 @@ double Calculator::factor()
 
 double Calculator::multiply_divide()
 {
-    double result = factor();
+    double result = expression();
 
     while (currentToken == "*" || currentToken == "/")
     {
         if (currentToken == "*")
         {
             increment_token();
-            result *= factor();
+            result *= expression();
         }
 
         if (currentToken == "/")
         {
             increment_token();
-            int divisor = factor();
+            int divisor = expression();
 
             if (divisor == 0)
             {

@@ -8,11 +8,6 @@
 double Calculator::parse(std::string input)
 {
     input = clean_input(input);
-    if (input.empty())
-    {
-        // REPLACE THIS WITH AN ERROR, THIS IS TEMP HANDLING 
-        return 0.0;
-    }
     tokenize_input(input);
     validate_tokens();
 
@@ -66,7 +61,7 @@ std::string Calculator::clean_input(std::string input)
         // If symbol wasn't found, throw an error.
         if (!isValidOp)
         {
-            printf("Invalid input, use only numbers and math operator symbols\n");
+            printf("ERROR: invalid input, expected digit or operator\n");
             input.clear();
             return input;
             // REPLACE THIS WITH THROWING AN ERROR, THIS SUCKS
@@ -147,8 +142,12 @@ void Calculator::validate_tokens()
         iter = std::next(iter);
     }
 
+    // maybe throw an error here instead
     if (parentheses_count % 2 != 0)
+    {
+        printf("ERROR: parentheses mismatch\n");
         tokens.clear();
+    }
 }
 
 void Calculator::increment_token()
@@ -227,7 +226,7 @@ double Calculator::expression()
 
     if (is_valid_symbol(currentToken))
     {
-        printf("invalid symbol\n");
+        printf("ERROR: invalid symbol\n");
         return 0.0;
         // throw an error here probably
     }

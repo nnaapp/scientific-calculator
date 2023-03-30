@@ -8,7 +8,7 @@
 class Calculator
 {
     private:
-        const std::vector<std::string> valid_symbols{"*", "/", "+", "-", "(", ")"};
+        const std::vector<std::string> valid_symbols{"*", "/", "+", "-", "(", ")", "."};
 
         std::list<std::string> tokens;
         std::string currentToken;

@@ -3,8 +3,6 @@
 #include <stdlib.h>
 #include <algorithm>
 
-// input of "-" seg faults, figure out why
-
 double Calculator::parse(std::string input)
 {
     input = clean_input(input);
@@ -56,10 +54,10 @@ std::string Calculator::clean_input(std::string input)
         //bool isValidOp = false;
         std::string cur_char_string;
         cur_char_string.push_back(input[i]);
-        bool isValidOp = is_valid_symbol(cur_char_string);
+        bool isValidOperator = is_valid_symbol(cur_char_string);
 
         // If symbol wasn't found, throw an error.
-        if (!isValidOp)
+        if (!isValidOperator)
         {
             printf("ERROR: invalid input, expected digit or operator\n");
             input.clear();
@@ -96,6 +94,7 @@ void Calculator::tokenize_input(const std::string str)
     //
     // This forms a list (we use list for pop_front(), mostly) or strings,
     // where each string is either an operator or a full number.
+    bool currentNumDecimal = false;
     for (int i = 0; i < len; i++)
     {
         char current = str[i];
@@ -104,21 +103,40 @@ void Calculator::tokenize_input(const std::string str)
         if (isdigit(current))
         {
             nums += current;
+            continue;
         }
-        else
+        
+        // If character is a decimal, see if there has already been a decimal
+        // in this number, otherwise concatonate it to the current number.
+        if (current == '.')
         {
-            // If non-numeric, it must be an operator because we cleaned the string in the parse() function.
-            // Push number to list and then push the operator after it.
-            if (!nums.empty())
+            // If there is already a decimal in the current number,
+            // then the tokens are invalid because that number cannot exist.
+            if (currentNumDecimal)
             {
-                tokens.push_back(nums);
-                nums.clear();
+                printf("ERROR: invalid decimal\n");
+                tokens.clear();
+                // probably throw an error here
+                return;
             }
 
-            token += current;
-            tokens.push_back(token);
-            token.clear();
+            nums += current;
+            currentNumDecimal = true;
+            continue;
         }
+
+        // If non-numeric, it must be an operator because we cleaned the string in the parse() function.
+        // Push number to list and then push the operator after it.
+        if (!nums.empty())
+        {
+            tokens.push_back(nums);
+            nums.clear();
+        }
+
+        token += current;
+        tokens.push_back(token);
+        token.clear();
+        currentNumDecimal = false;
     }
 
     // Push the final number if any.
@@ -152,7 +170,6 @@ void Calculator::validate_tokens()
 
 void Calculator::increment_token()
 {
-    //printf("%d\n", tokens.size());
     if (tokens.empty())
     {
         currentToken.clear();

@@ -1,21 +1,30 @@
 #include "calculator.h"
 #include <stdio.h>
 #include <stdlib.h>
-#include <algorithm>
+#include <stdexcept>
 
 double Calculator::parse(std::string input)
 {
-    input = clean_input(input);
-    tokenize_input(input);
-    validate_tokens();
-
-    if (!tokens.empty())
+    try
     {
-        currentToken = tokens.front();
-        return add_subtract();
+        input = clean_input(input);
+        tokenize_input(input);
+        validate_tokens();
+
+        if (!tokens.empty())
+        {
+            currentToken = tokens.front();
+            return add_subtract();
+        }
+
+        // If tokens are empty, then the answer is always 0.
+        return 0;
     }
-    
-    return 0;
+    catch (InvalidParseException e)
+    {
+        printf("%s\n", e.message().c_str());
+        return 0;
+    }
 }
 
 std::string Calculator::clean_input(std::string input)
@@ -51,7 +60,6 @@ std::string Calculator::clean_input(std::string input)
         // Iterate over the string and set a flag to true
         // if the symbol is found when searching the list
         // of valid symbols.
-        //bool isValidOp = false;
         std::string cur_char_string;
         cur_char_string.push_back(input[i]);
         bool isValidOperator = is_valid_symbol(cur_char_string);
@@ -59,10 +67,7 @@ std::string Calculator::clean_input(std::string input)
         // If symbol wasn't found, throw an error.
         if (!isValidOperator)
         {
-            printf("ERROR: invalid input, expected digit or operator\n");
-            input.clear();
-            return input;
-            // REPLACE THIS WITH THROWING AN ERROR, THIS SUCKS
+            throw InvalidParseException("Invalid symbol");
         }
     }
 
@@ -114,10 +119,11 @@ void Calculator::tokenize_input(const std::string str)
             // then the tokens are invalid because that number cannot exist.
             if (currentNumDecimal)
             {
-                printf("ERROR: invalid decimal\n");
+                /*printf("ERROR: invalid decimal\n");
                 tokens.clear();
                 // probably throw an error here
-                return;
+                return;*/
+                throw InvalidParseException("Invalid decimal");
             }
 
             nums += current;
@@ -151,7 +157,7 @@ void Calculator::validate_tokens()
 {
     std::list<std::string>::iterator iter = tokens.begin();
 
-    int parentheses_count;
+    int parentheses_count = 0;
     while (iter != tokens.end())
     {
         if (*iter == "(" || *iter == ")")
@@ -160,11 +166,18 @@ void Calculator::validate_tokens()
         iter = std::next(iter);
     }
 
-    // maybe throw an error here instead
+    iter--;
+    if (is_valid_symbol(*iter) && (*iter) != ")")
+    {
+        throw InvalidParseException("Invalid symbol at end");
+    }
+
+    // If the number of parentheses is odd, meaning that
+    // the remainder of count / 2 is non-zero, then there is a
+    // mismatch somewhere.
     if (parentheses_count % 2 != 0)
     {
-        printf("ERROR: parentheses mismatch\n");
-        tokens.clear();
+        throw InvalidParseException("Parentheses mismatch");
     }
 }
 
@@ -198,8 +211,6 @@ double Calculator::expression()
     {
         increment_token();
         result = add_subtract();
-        // i think this incrementation causes problems, 
-        // not sure when and where, but im trying removing it
         increment_token();
         return result;
     }
@@ -210,16 +221,16 @@ double Calculator::expression()
 
         if (tokens.size() < 2)
         {
-            printf("ERROR: invalid sign -\n");
-            // Throw an error here, this means they have somehow gotten here with a hanging negative
-            // and proceeding would break the world
-            return 0;
+            // If there is 1 (or somehow less) tokens left,
+            // and this one is a negative, then it is invalid.
+            throw InvalidParseException("Invalid negative");
         }
 
         std::list<std::string>::iterator nextToken = tokens.begin();
         nextToken = std::next(nextToken);
 
-        if (isdigit((*nextToken).at(0)))
+        // If next is not a symbol, meaning it is numeric
+        if (!(is_valid_symbol(*nextToken)))
         {
             increment_token();
             result = -atof(currentToken.c_str());
@@ -227,6 +238,7 @@ double Calculator::expression()
             return result;
         }
 
+        // If next is a parentheses, meaning an expression
         if ((*nextToken) == "(")
         {
             increment_token();
@@ -236,16 +248,18 @@ double Calculator::expression()
             return result;
         }
 
-        printf("ERROR: invalid sign -\n");
-        // Throw an error here, this means the - sign is not a negation and is in an invalid spot
-        return 0;
+        // If we get here, the thing following the negative is unexpected,
+        // and makes the expression invalid.
+        throw InvalidParseException("Invalid negative");
     }
 
+    // If we get inside of this condition, there is
+    // a symbol where the calculator is expecting
+    // a number. This means the input is invalid and 
+    // we cannot finish.
     if (is_valid_symbol(currentToken))
     {
-        printf("ERROR: invalid symbol\n");
-        return 0.0;
-        // throw an error here probably
+        throw InvalidParseException("Unexpected symbol");
     }
 
     // normal number case
@@ -273,14 +287,13 @@ double Calculator::multiply_divide()
         if (currentToken == "/")
         {
             increment_token();
-            int divisor = expression();
+            double divisor = expression();
 
             if (divisor == 0)
             {
-                // throw an error here, this is impossible
-                return 0;
+                throw InvalidParseException("Division by zero");
             }
-
+ 
             result /= divisor;
         }
     }

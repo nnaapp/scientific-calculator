@@ -28,4 +28,20 @@ class Calculator
         double parse(std::string);
 };
 
+class InvalidParseException : std::exception
+{
+    private:
+        std::string Message;
+    public:
+        std::string message()
+        {
+            return Message;
+        }
+
+        InvalidParseException(std::string Message = "")
+        {
+            this->Message = Message;
+        }
+};
+
 #endif

@@ -36,6 +36,12 @@ std::string Calculator::clean_input(std::string input)
     int pos = 0;
     for (int i = 0; i < inputLen; i++)
     {
+        // If the current character is not a space,
+        // put the i'th element into the pos'th index.
+        // In the case that the current character IS a space,
+        // pos and i will become offset from each other because
+        // i increments and pos does not. This allows us to
+        // shift based on the number of spaces we are removing.
         if (input[i] != ' ')
         {
             input[pos] = input[i];
@@ -57,15 +63,9 @@ std::string Calculator::clean_input(std::string input)
             continue;
         }
 
-        // Iterate over the string and set a flag to true
-        // if the symbol is found when searching the list
-        // of valid symbols.
-        std::string cur_char_string;
-        cur_char_string.push_back(input[i]);
-        bool isValidOperator = is_valid_symbol(cur_char_string);
-
-        // If symbol wasn't found, throw an error.
-        if (!isValidOperator)
+        // If the symbol is not in our list of valid symbols,
+        // throw an error.
+        if (!is_valid_symbol(input.substr(i, 1)))
         {
             throw InvalidParseException("Invalid symbol");
         }
@@ -74,6 +74,11 @@ std::string Calculator::clean_input(std::string input)
     return input;
 }
 
+// This checks the passed in string against the list of valid symbols,
+// to quickly check if it is a good token or not.
+// std::string is used because we use iterators to iterate across the list of tokens,
+// and the tokens are stored as strings due to multi-digit numbers, and it is just easier
+// to use std::string than it is to put (*iterator)[0], which is also less readable.
 bool Calculator::is_valid_symbol(std::string str)
 {
     for (int i = 0; i < valid_symbols.size(); i++)
@@ -92,7 +97,7 @@ void Calculator::tokenize_input(const std::string str)
     std::string nums, token;
     int len = str.length();
 
-    // Go over every character (char) in the string,
+    // Go over every character in the string,
     // check if it is a digit or a math operator,
     // and either keep adding until you encounter a non-digit
     // or push the digits and then push the operator.
@@ -116,17 +121,14 @@ void Calculator::tokenize_input(const std::string str)
         if (current == '.')
         {
             // If there is already a decimal in the current number,
-            // then the tokens are invalid because that number cannot exist.
+            // then this token is invalid because two decimals is meaningless.
             if (currentNumDecimal)
             {
-                /*printf("ERROR: invalid decimal\n");
-                tokens.clear();
-                // probably throw an error here
-                return;*/
                 throw InvalidParseException("Invalid decimal");
             }
 
             nums += current;
+            // Set the decimal flag for the above exception case.
             currentNumDecimal = true;
             continue;
         }
@@ -157,32 +159,42 @@ void Calculator::validate_tokens()
 {
     std::list<std::string>::iterator iter = tokens.begin();
 
-    int parentheses_count = 0;
+    // Count number of parentheses, open and close.
+    int openPar = 0, closePar = 0;
     while (iter != tokens.end())
     {
-        if (*iter == "(" || *iter == ")")
-            parentheses_count++;
+        if (*iter == "(")
+            openPar++;
+
+        if (*iter == ")")
+            closePar++;
 
         iter = std::next(iter);
     }
 
+    // While we are here, check the last symbol to see if it's valid or not,
+    // this could prevent doing work we don't need to do.
+    // Invalid is any symbol that isn't ), because something like (2 + 2) is valid.
     iter--;
     if (is_valid_symbol(*iter) && (*iter) != ")")
     {
         throw InvalidParseException("Invalid symbol at end");
     }
 
-    // If the number of parentheses is odd, meaning that
-    // the remainder of count / 2 is non-zero, then there is a
-    // mismatch somewhere.
-    if (parentheses_count % 2 != 0)
+    // If there is a mismatched number of open vs close parentheses,
+    // something is wrong.
+    if (openPar != closePar)
     {
         throw InvalidParseException("Parentheses mismatch");
     }
 }
 
+// Inrements the current token by popping the front of the list,
+// and then getting the new front element.
 void Calculator::increment_token()
 {
+    // This is here to catch any weird cases,
+    // if we get here with an empty list.
     if (tokens.empty())
     {
         currentToken.clear();
@@ -201,12 +213,17 @@ void Calculator::increment_token()
 }
 
 
-// rename this, name is obscure and not helpful
+// This function handles recursively starting back at add_subtract,
+// in order to handle sub-expressions. 2 + (2 + 2) is handled by recursively
+// passing in the (2 + 2) expression, and then treating the result as one number.
+// This function also treats single digits as an expression. That is to say, in
+// 2 + (2 + 2), the first 2 is returned as the result of a single digit expression,
+// in the eyes of this algorithm.
 double Calculator::expression()
 {
     double result;
 
-    // parentheses case
+    // Parentheses case
     if (currentToken == "(")
     {
         increment_token();
@@ -215,21 +232,21 @@ double Calculator::expression()
         return result;
     }
     
-    // negative case
+    // Negative case
     if (currentToken == "-")
     {
-
-        if (tokens.size() < 2)
+        // If we somehow get inside this condition,
+        // the last token is a - and is thus invalid.
+        if (tokens.size() <= 1)
         {
-            // If there is 1 (or somehow less) tokens left,
-            // and this one is a negative, then it is invalid.
             throw InvalidParseException("Invalid negative");
         }
 
         std::list<std::string>::iterator nextToken = tokens.begin();
         nextToken = std::next(nextToken);
 
-        // If next is not a symbol, meaning it is numeric
+        // If next is not a symbol, meaning it is numeric,
+        // then this is a negative number.
         if (!(is_valid_symbol(*nextToken)))
         {
             increment_token();
@@ -238,7 +255,8 @@ double Calculator::expression()
             return result;
         }
 
-        // If next is a parentheses, meaning an expression
+        // If next is a parentheses, meaning an expression,
+        // then this is a negative expression and we recurse.
         if ((*nextToken) == "(")
         {
             increment_token();
@@ -262,16 +280,24 @@ double Calculator::expression()
         throw InvalidParseException("Unexpected symbol");
     }
 
-    // normal number case
+    // Normal number case
 
     // String to double conversion.
     // We use doubles to support decimals, as well as precision.
+    // atof returns 0.0 if it is passed a non-numeric input,
+    // but we cleaned out tokens and handled unexpected ones,
+    // so that should never happen.
     result = atof(currentToken.c_str());
     increment_token();
 
     return result;
 }
 
+// This function handles the MD part of PEMDAS, checking for 
+// multiplication and then division. It serves as the middle step in our
+// add_subtract -> multiply_divide -> expression hierarchy.
+// It calls expression as the first instruction in order to immediately
+// fall through to the PE part of PEMDAS, and get the symbol it is meant to check.
 double Calculator::multiply_divide()
 {
     double result = expression();
@@ -301,6 +327,12 @@ double Calculator::multiply_divide()
     return result;
 }
 
+// This function handles the AS part of PEMDAS, checking for
+// addition and then subtraction. It is the first step in our
+// add_subtract -> multiply_divide -> expression hierarchy. It immediately
+// calls multiply_divide, which then calls expression, so we fall through to
+// the PE part of PEMDAS and work backwards. This will be the last function
+// of the three to resolve completely, as it is the last step of PEMDAS.
 double Calculator::add_subtract()
 {
     double result = multiply_divide();
